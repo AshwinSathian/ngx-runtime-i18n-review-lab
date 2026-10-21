@@ -344,6 +344,14 @@ describe('formatIcu', () => {
       );
     });
 
+    it('renders negative zero as 0, in arguments and in #', () => {
+      expect(fmt('en', '{n, number}|{c, plural, other {# x}}', { n: -0, c: -0 })).toBe('0|0 x');
+    });
+
+    it('accepts whitespace around the keyword and style, matching ExtractParams', () => {
+      expect(fmt('en', '{n, number }|{d,\tdate , long}', { n: 1234, d: day })).toBe('1,234|January 15, 2026');
+    });
+
     it('accepts an underscore-separated language tag', () => {
       expect(fmt('de_DE', '{n, number}', { n: 1234.5 })).toBe('1.234,5');
     });

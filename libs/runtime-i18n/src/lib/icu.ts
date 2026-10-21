@@ -8,7 +8,7 @@ import type { Catalog, PluralCategory, PluralResolver } from './types';
 
 // Tokens may include dots or hyphens so nested object keys like "user.name" are practical.
 const INTERPOLATION_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_.-]*)\}/g;
-const ARGUMENT_PATTERN = /\{(\w+),\s*(number|date|time)(?:,\s*([^{}]*?))?\s*\}/g;
+const ARGUMENT_PATTERN = /\{(\w+),\s*(number|date|time)\s*(?:,\s*([^{}]*?))?\s*\}/g;
 
 // Quoted syntax characters are swapped for Unicode noncharacters while the message
 // is parsed, so they can't open blocks, close blocks, or become `#`. Noncharacters are
@@ -101,13 +101,14 @@ function formatArgument(value: unknown, type: string, style: string, lang: strin
     // Number('') and Number('  ') are 0; treat blank strings as unformattable instead.
     const n = typeof value === 'number' ? value : Number(String(value).trim() || NaN);
     if (!Number.isFinite(n)) return String(value);
+    // `n === 0 ? 0 : n` below: Intl renders -0 (e.g. Math.round(-0.3)) as "-0"; String(-0) is "0".
     const currency = /^::currency\/(\S+)$/.exec(style);
     const opts: Intl.NumberFormatOptions =
       style === 'integer' ? { maximumFractionDigits: 0 }
       : style === 'percent' ? { style: 'percent' }
       : currency ? { style: 'currency', currency: currency[1] }
       : {};
-    return cachedFormat('n', lang, style, () => new Intl.NumberFormat(normalizeLang(lang), opts))?.format(n) ?? String(value);
+    return cachedFormat('n', lang, style, () => new Intl.NumberFormat(normalizeLang(lang), opts))?.format(n === 0 ? 0 : n) ?? String(value);
   }
 
   // Only a Date or epoch milliseconds: `new Date(true)` is 1970, and a date-only string
