@@ -20,7 +20,7 @@ const angularApp = new AngularNodeAppEngine();
  *
  * Example:
  * ```ts
- * app.get('/api/**', (req, res) => {
+ * app.get('/api/{*splat}', (req, res) => {
  *   // Handle API request
  * });
  * ```
@@ -39,8 +39,9 @@ app.use(
 
 /**
  * Handle all other requests by rendering the Angular application.
+ * Path-less: Express 5 rejects the old `'/**'` wildcard.
  */
-app.use('/**', (req, res, next) => {
+app.use((req, res, next) => {
   angularApp
     .handle(req)
     .then((response) =>

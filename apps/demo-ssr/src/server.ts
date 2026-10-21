@@ -101,9 +101,11 @@ app.use(
 );
 
 /**
- * SSR render for all other routes.
+ * SSR render for all other routes. Path-less on purpose: Express 5's router
+ * rejects the old `'/**'` wildcard (wildcards must be named, e.g. `'/{*splat}'`)
+ * and `app.use` without a path already matches every request.
  */
-app.use('/**', (req, res, next) => {
+app.use((req, res, next) => {
   const snapshot = buildSnapshot(req);
   // Optional: log once per request
   // console.log('[i18n][SSR] lang=%s catalogs=%s', snapshot.lang, Object.keys(snapshot.catalogs));
