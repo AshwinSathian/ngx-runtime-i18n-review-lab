@@ -40,10 +40,10 @@ ICU-lite is not a full ICU implementation. It aims to cover the common 80% of me
 - Nesting `plural`, `select`, and `selectordinal` blocks inside each other, including the same keyword nested inside itself, to arbitrary depth. `#` stays bound to its nearest enclosing `plural`/`selectordinal` block even when nested inside a `select`.
 - Nested placeholders inside option bodies (balanced braces are retained).
 - `{n, number}` arguments, formatted with `Intl.NumberFormat` for the active language. Styles: `integer`, `percent`, and the `::currency/XXX` skeleton (e.g. `{price, number, ::currency/EUR}`). Other styles fall back to plain number formatting.
-- `{d, date}` and `{d, time}` arguments (a `Date` or an epoch-millisecond number), formatted with `Intl.DateTimeFormat`. Styles: `short`, `medium` (default), `long`, `full`.
-- `#` inside `plural`/`selectordinal` is formatted for the locale like `{n, number}` (`1,234` in `en`, `1.234` in `de`).
-- ICU apostrophe quoting: `''` is a literal `'`; a `'` directly before `{`, `}` or `#` quotes text up to the next lone `'` (`'{name}'` renders as `{name}`); any other `'` (as in `don't`) is literal.
-- A missing argument is left as written (`{d, date}`), like a missing `{name}`. A value that can't be formatted (an invalid date, a non-numeric number, an unknown currency code) renders as `String(value)` instead of throwing.
+- `{d, date}` and `{d, time}` arguments, formatted with `Intl.DateTimeFormat` in the runtime's local time zone. The value must be a `Date` or an epoch-millisecond number; anything else, including a date string, renders as `String(value)`. Styles: `short`, `medium` (default), `long`, `full`.
+- `#` inside `plural`/`selectordinal` is formatted for the locale like `{n, number}` (`1,234` in `en`, `1.234` in `de`). As in ICU, a fractional count is rounded to three decimal places (`1.23456` renders `1.235`).
+- ICU apostrophe quoting: `''` is a literal `'`; a `'` directly before `{` or `}`, or before `#` inside a `plural`/`selectordinal` block, quotes text up to the next lone `'` (`'{name}'` renders as `{name}`); any other `'` (as in `don't` or `'#42'` outside a plural) is literal.
+- A missing argument is left as written (`{d, date}`), like a missing `{name}`. A value that can't be formatted (an invalid date, a non-numeric number, a malformed currency code such as `::currency/euro`, an invalid language tag) renders as `String(value)` instead of throwing. A well-formed but unassigned code such as `XYZ` is passed to `Intl`, which renders it as `XYZ 5.00`.
 
 ```ts
 formatIcu('de', 'm', { m: 'Summe: {total, number, ::currency/EUR}' }, { total: 1234.5 }); // "Summe: 1.234,50 €"
@@ -60,6 +60,8 @@ Apostrophe quoting changes how existing messages like `"Delete '{name}'?"` rende
 ## Not supported
 
 - Number skeletons beyond `::currency/XXX`, date/time skeletons, and custom formatters.
+- Choosing a time zone for `date`/`time`. With SSR, a server and a browser in different zones can render different text and cause a hydration mismatch, so pass a pre-formatted string for dates where that matters.
+- Type-level awareness of quoting and nesting: `ExtractParams` still asks for `name` in `"'{name}'"`, and doesn't see arguments inside `plural`/`select` option bodies.
 - Unmatched braces that resemble valid tokens; quote them (`'{'`) instead.
 
 If your catalogs need the full ICU MessageFormat grammar (arbitrary skeletons, custom formatters), ICU-lite doesn't cover it.

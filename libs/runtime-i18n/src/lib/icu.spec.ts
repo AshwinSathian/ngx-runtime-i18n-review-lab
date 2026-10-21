@@ -312,8 +312,36 @@ describe('formatIcu', () => {
       expect(fmt('en', '[{n, number}]', { n: '' })).toBe('[]');
     });
 
-    it('falls back to the raw value for an invalid currency code instead of throwing', () => {
+    it('falls back to the raw value for a malformed currency code instead of throwing', () => {
       expect(fmt('en', '{p, number, ::currency/notacode}', { p: 5 })).toBe('5');
+    });
+
+    it('formats a well-formed but unassigned currency code the way Intl does', () => {
+      expect(fmt('en', '{p, number, ::currency/XYZ}', { p: 5 })).toBe(
+        new Intl.NumberFormat('en', { style: 'currency', currency: 'XYZ' }).format(5)
+      );
+    });
+
+    it('falls back to the raw value for number, date and # when the language tag is invalid', () => {
+      expect(fmt('xx-!!', '{n, number}|{d, date}|{c, plural, other {# x}}', { n: 1234, d: 0, c: 1234 })).toBe(
+        '1234|0|1234 x'
+      );
+    });
+
+    it('renders only Date objects and finite numbers as dates, anything else as String(value)', () => {
+      expect(fmt('en', '{d, date}', { d: true })).toBe('true');
+      expect(fmt('en', '{d, date}', { d: '2026-01-15' })).toBe('2026-01-15');
+    });
+
+    it('never re-scans an unformattable value as a placeholder', () => {
+      expect(fmt('en', '{n, number}', { n: '{token}', token: 'SECRET' })).toBe('{token}');
+      expect(fmt('en', '{d, date}', { d: '{token}', token: 'SECRET' })).toBe('{token}');
+    });
+
+    it('does not resolve Object.prototype members as argument or placeholder values', () => {
+      expect(fmt('en', '{constructor, number}|{toString, date}|{toString}', {})).toBe(
+        '{constructor, number}|{toString, date}|{toString}'
+      );
     });
 
     it('accepts an underscore-separated language tag', () => {
@@ -322,6 +350,10 @@ describe('formatIcu', () => {
   });
 
   describe('locale-aware # in plural branches', () => {
+    it('rounds a fractional # to three digits, like ICU and Intl.NumberFormat defaults', () => {
+      expect(formatIcu('en', 'cart.items', cat, { count: 1.23456 })).toBe('1.235 items in your cart');
+    });
+
     it('formats # with the active locale instead of a raw String(n)', () => {
       expect(formatIcu('en', 'cart.items', cat, { count: 1234 })).toBe('1,234 items in your cart');
       expect(formatIcu('de', 'cart.items', cat, { count: 1234 })).toBe('1.234 items in your cart');
@@ -354,6 +386,23 @@ describe('formatIcu', () => {
 
     it("supports '' inside a quoted section", () => {
       expect(fmt("'{it''s}'")).toBe("{it's}");
+    });
+
+    it("keeps the quotes around a value written as ''{name}'' (the documented migration)", () => {
+      expect(fmt("Delete ''{name}''?", { name: 'Ana' })).toBe("Delete 'Ana'?");
+    });
+
+    it("does not treat '# as a quote outside plural/selectordinal, where # is plain text", () => {
+      expect(fmt("Issue '#42' closed")).toBe("Issue '#42' closed");
+      expect(fmt("Tag '#fun and don't stop")).toBe("Tag '#fun and don't stop");
+    });
+
+    it("treats '# as a quote inside a select nested in a plural, where # is still the count", () => {
+      expect(fmt("{n, plural, other {{g, select, other {'#'#}}}}", { n: 2, g: 'x' })).toBe('#2');
+    });
+
+    it('leaves private-use characters in catalog text alone', () => {
+      expect(fmt('icon \uE000\uE001\uE002 here')).toBe('icon \uE000\uE001\uE002 here');
     });
 
     it('treats an unterminated quote as quoting to the end of the message', () => {

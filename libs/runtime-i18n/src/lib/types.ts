@@ -119,11 +119,17 @@ type SplitBalanced<S extends string, Depth extends unknown[] = [], Token extends
       : SplitBalanced<Rest, Depth, `${Token}${Ch}`>
     : never;
 
+/** Whitespace the runtime scanner's `\s*` accepts in practice. @internal */
+type Whitespace = ' ' | '\t' | '\n' | '\r';
+
 /** Strips leading whitespace, mirroring the runtime scanner's `\s*` after each comma. @internal */
-type TrimLeft<S extends string> = S extends ` ${infer Rest}` ? TrimLeft<Rest> : S;
+type TrimLeft<S extends string> = S extends `${Whitespace}${infer Rest}` ? TrimLeft<Rest> : S;
+
+/** Strips trailing whitespace, mirroring the `\s*` before an argument's closing brace. @internal */
+type TrimRight<S extends string> = S extends `${infer Rest}${Whitespace}` ? TrimRight<Rest> : S;
 
 /** The ICU keyword after an argument's first comma, with any `, style` dropped. @internal */
-type ArgKeyword<S extends string> = S extends `${infer Keyword},${string}` ? Keyword : S;
+type ArgKeyword<S extends string> = TrimRight<S extends `${infer Keyword},${string}` ? Keyword : S>;
 
 /** Param type for an ICU argument keyword; `unknown` means "not a known keyword". @internal */
 type ArgType<Keyword extends string> =

@@ -10,10 +10,13 @@ import type { Catalog, PluralCategory, PluralResolver } from './types';
 const INTERPOLATION_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_.-]*)\}/g;
 const ARGUMENT_PATTERN = /\{(\w+),\s*(number|date|time)(?:,\s*([^{}]*?))?\s*\}/g;
 
-// Quoted syntax characters are swapped for private-use code points while the
-// message is parsed, so they can't open blocks, close blocks, or become `#`.
-const QUOTED: Record<string, string> = { '{': '\uE000', '}': '\uE001', '#': '\uE002' };
-const UNQUOTED: Record<string, string> = { '\uE000': '{', '\uE001': '}', '\uE002': '#' };
+// Quoted syntax characters are swapped for Unicode noncharacters while the message
+// is parsed, so they can't open blocks, close blocks, or become `#`. Noncharacters are
+// reserved for internal use and never appear in real catalog text or user input.
+const QUOTED: Record<string, string> = { '{': '\uFDD0', '}': '\uFDD1', '#': '\uFDD2' };
+const UNQUOTED: Record<string, string> = { '\uFDD0': '{', '\uFDD1': '}', '\uFDD2': '#' };
+// Same prefix shape as the block scanner in replaceMessageBlocks.
+const PLURAL_BLOCK_START = /\{\w+,\s*(?:plural|selectordinal),/y;
 
 export function formatIcu(
   _lang: string,
@@ -33,35 +36,52 @@ export function formatIcu(
   out = replaceMessageBlocks(out, _lang, p, pluralResolver);
 
   // 2) {x, number|date|time[, style]} arguments, including ones selected out of a block.
-  out = out.replace(ARGUMENT_PATTERN, (m: string, arg: string, type: string, style?: string) =>
-    p[arg] != null ? formatArgument(p[arg], type, style ?? '', _lang) : m
-  );
+  //    Braces in the result are protected so step 3 never treats a param value as a placeholder.
+  out = out.replace(ARGUMENT_PATTERN, (m: string, arg: string, type: string, style?: string) => {
+    const v = own(p, arg);
+    return v != null ? formatArgument(v, type, style ?? '', _lang).replace(/[{}]/g, (c) => QUOTED[c]) : m;
+  });
 
   // 3) Simple {name} interpolation AFTER message block selection.
   INTERPOLATION_PATTERN.lastIndex = 0;
-  out = out.replace(INTERPOLATION_PATTERN, (_m: string, p1: string) =>
-    p[p1] != null ? String(p[p1]) : `{${p1}}`
-  );
+  out = out.replace(INTERPOLATION_PATTERN, (m: string, p1: string) => {
+    const v = own(p, p1);
+    return v != null ? String(v) : m;
+  });
 
-  // ponytail: runs after interpolation, so a param value containing U+E000-E002 also
-  // turns into a brace/#. Escape param values first if that ever matters.
-  return out.replace(/[\uE000-\uE002]/g, (c) => UNQUOTED[c]);
+  return out.replace(/[\uFDD0-\uFDD2]/g, (c) => UNQUOTED[c]);
+}
+
+/** Own-property read, so `{constructor}` or `{toString, date}` can't resolve to Object.prototype. */
+function own(params: Record<string, unknown>, key: string): unknown {
+  return Object.prototype.hasOwnProperty.call(params, key) ? params[key] : undefined;
 }
 
 /**
  * ICU apostrophe quoting (ApostropheMode.DOUBLE_OPTIONAL, as in ICU4J and FormatJS):
- * `''` is a literal `'`; a `'` directly before `{`, `}` or `#` quotes text up to the
- * next lone `'` (or the end of the message); any other `'` is literal.
+ * `''` is a literal `'`; a `'` directly before `{` or `}`, or before `#` inside a
+ * plural/selectordinal block, quotes text up to the next lone `'` (or the end of the
+ * message); any other `'` is literal.
  */
 function protectQuoted(s: string): string {
   if (!s.includes("'")) return s;
+  // One entry per open brace: is this text inside a plural/selectordinal block? Nested
+  // blocks inherit it, matching how this formatter binds `#` through a nested select.
+  const inPlural: boolean[] = [];
   let out = '';
   for (let i = 0; i < s.length; i++) {
     const ch = s.charAt(i);
+    if (ch === '{') {
+      PLURAL_BLOCK_START.lastIndex = i;
+      inPlural.push(PLURAL_BLOCK_START.test(s) || (inPlural[inPlural.length - 1] ?? false));
+    } else if (ch === '}') {
+      inPlural.pop();
+    }
     if (ch !== "'") { out += ch; continue; }
     const next = s.charAt(i + 1);
     if (next === "'") { out += "'"; i++; continue; }
-    if (!(next in QUOTED)) { out += ch; continue; }
+    const quotes = next === '{' || next === '}' || (next === '#' && inPlural[inPlural.length - 1]);
+    if (!quotes) { out += ch; continue; }
     for (i++; i < s.length; i++) {
       const q = s.charAt(i);
       if (q === "'") {
@@ -90,8 +110,10 @@ function formatArgument(value: unknown, type: string, style: string, lang: strin
     return cachedFormat('n', lang, style, () => new Intl.NumberFormat(normalizeLang(lang), opts))?.format(n) ?? String(value);
   }
 
-  const d = value instanceof Date ? value : new Date(value as string | number);
-  if (Number.isNaN(d.getTime())) return String(value);
+  // Only a Date or epoch milliseconds: `new Date(true)` is 1970, and a date-only string
+  // is parsed as UTC midnight, which shows as the previous day west of Greenwich.
+  const d = value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return String(value);
   const s = (DATE_STYLES.includes(style) ? style : 'medium') as Intl.DateTimeFormatOptions['dateStyle'];
   const opts: Intl.DateTimeFormatOptions = type === 'date' ? { dateStyle: s } : { timeStyle: s };
   return cachedFormat(type, lang, s as string, () => new Intl.DateTimeFormat(normalizeLang(lang), opts))?.format(d) ?? String(value);
@@ -180,7 +202,7 @@ function replaceMessageBlocks(
     const { offset, map: options } = parsePluralBody(body);
 
     if (keyword === 'plural' || keyword === 'selectordinal') {
-      const n = Number(params[arg] ?? 0);
+      const n = Number(own(params, arg) ?? 0);
       if (Number.isFinite(n)) {
         const exact = options[`=${n}`];
         if (exact != null) {
@@ -201,7 +223,7 @@ function replaceMessageBlocks(
       }
     } else {
       // select: look up param value directly, then resolve any nested keyword blocks
-      const val = String(params[arg] ?? 'other');
+      const val = String(own(params, arg) ?? 'other');
       out += replaceMessageBlocks(options[val] ?? options['other'] ?? '', lang, params, pluralResolver);
     }
 

@@ -100,14 +100,16 @@ formatIcu('en', 'cart.items', catalog, { count: 2 }); // "2 items"
 - `selectordinal` blocks, using the same `=n` exact-match syntax as `plural`. Without a custom plural resolver, both `plural` and `selectordinal` fall back to a plain `one`-if-equal-to-1/`other` rule; pass a `pluralResolver` for full CLDR (cardinal or ordinal) categories.
 - Nesting `plural`, `select`, and `selectordinal` blocks inside each other, including the same keyword nested inside itself, to arbitrary depth.
 - `{n, number}` arguments, formatted with `Intl.NumberFormat` for the active language. Styles: `integer`, `percent`, and the `::currency/XXX` skeleton (e.g. `{price, number, ::currency/EUR}`). Other styles fall back to plain number formatting.
-- `{d, date}` and `{d, time}` arguments (a `Date` or an epoch-millisecond number), formatted with `Intl.DateTimeFormat`. Styles: `short`, `medium` (default), `long`, `full`.
-- `#` inside `plural`/`selectordinal` is formatted for the locale like `{n, number}` (`1,234` in `en`, `1.234` in `de`).
-- ICU apostrophe quoting: `''` is a literal `'`; a `'` directly before `{`, `}` or `#` quotes text up to the next lone `'` (`'{name}'` renders as `{name}`); any other `'` (as in `don't`) is literal.
-- A missing argument is left as written (`{d, date}`), like a missing `{name}`. A value that can't be formatted (an invalid date, a non-numeric number, an unknown currency code) renders as `String(value)` instead of throwing.
+- `{d, date}` and `{d, time}` arguments, formatted with `Intl.DateTimeFormat` in the runtime's local time zone. The value must be a `Date` or an epoch-millisecond number; anything else, including a date string, renders as `String(value)`. Styles: `short`, `medium` (default), `long`, `full`.
+- `#` inside `plural`/`selectordinal` is formatted for the locale like `{n, number}` (`1,234` in `en`, `1.234` in `de`). As in ICU, a fractional count is rounded to three decimal places (`1.23456` renders `1.235`).
+- ICU apostrophe quoting: `''` is a literal `'`; a `'` directly before `{` or `}`, or before `#` inside a `plural`/`selectordinal` block, quotes text up to the next lone `'` (`'{name}'` renders as `{name}`); any other `'` (as in `don't` or `'#42'` outside a plural) is literal.
+- A missing argument is left as written (`{d, date}`), like a missing `{name}`. A value that can't be formatted (an invalid date, a non-numeric number, a malformed currency code such as `::currency/euro`, an invalid language tag) renders as `String(value)` instead of throwing. A well-formed but unassigned code such as `XYZ` is passed to `Intl`, which renders it as `XYZ 5.00`.
 
 ### Not supported
 
 - Number skeletons beyond `::currency/XXX`, date/time skeletons, and custom formatters.
+- Choosing a time zone for `date`/`time`. With SSR, a server and a browser in different zones can render different text and cause a hydration mismatch, so pass a pre-formatted string for dates where that matters.
+- Type-level awareness of quoting and nesting: `ExtractParams` still asks for `name` in `"'{name}'"`, and doesn't see arguments inside `plural`/`select` option bodies.
 - Unmatched braces that resemble valid tokens; quote them (`'{'`) instead.
 
 ---

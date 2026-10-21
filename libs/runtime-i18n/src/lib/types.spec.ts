@@ -13,7 +13,8 @@ describe('ExtractParams', () => {
     const badNumber: ExtractParams<'{p, number, ::currency/EUR}'> = { p: 'x' };
     // @ts-expect-error a date argument rejects strings
     const badDate: ExtractParams<'{d, date}'> = { d: '2026-01-01' };
-    expect([ok, epoch, badNumber, badDate]).toHaveLength(4);
+    const spaced: ExtractParams<'{n, number } {d,\tdate , short}'> = { n: 1, d: 0 };
+    expect([ok, epoch, badNumber, badDate, spaced]).toHaveLength(5);
   });
 
   it('keeps existing plural/select/plain typing', () => {
