@@ -2,7 +2,7 @@
 
 Framework‑agnostic primitives for runtime internationalisation:
 
-- Tiny, dependency‑free **ICU‑lite** formatter (interpolation, `plural`, `select`, `selectordinal`).
+- Tiny, dependency‑free **ICU‑lite** formatter (interpolation, `plural`, `select`, `selectordinal`, `number`/`date`/`time` via `Intl`, apostrophe quoting).
 - Shared types used by the Angular wrapper.
 
 This package is designed to be used directly or via `@ngx-runtime-i18n/angular`.
@@ -41,7 +41,7 @@ formatIcu('en', 'cart.items', catalog, { count: 2 }); // "2 items"
 
 ### `formatIcu(lang, key, catalog, params?, onMissingKey?, pluralResolver?)`
 
-- **`lang: string`**: current language (for plural rules and future features).
+- **`lang: string`**: current language (for plural rules and `Intl` number/date/time formatting).
 - **`key: string`**: dotted path into the catalog.
 - **`catalog: Catalog`**: a nested object of strings/objects.
 - **`params?: Record<string, unknown> | null`**: interpolation values (`null`/`undefined` are both treated as no params).
@@ -99,12 +99,16 @@ formatIcu('en', 'cart.items', catalog, { count: 2 }); // "2 items"
 - `select` blocks with arbitrary named options, falling back to `other` when a value doesn't match.
 - `selectordinal` blocks, using the same `=n` exact-match syntax as `plural`. Without a custom plural resolver, both `plural` and `selectordinal` fall back to a plain `one`-if-equal-to-1/`other` rule; pass a `pluralResolver` for full CLDR (cardinal or ordinal) categories.
 - Nesting `plural`, `select`, and `selectordinal` blocks inside each other, including the same keyword nested inside itself, to arbitrary depth.
+- `{n, number}` arguments, formatted with `Intl.NumberFormat` for the active language. Styles: `integer`, `percent`, and the `::currency/XXX` skeleton (e.g. `{price, number, ::currency/EUR}`). Other styles fall back to plain number formatting.
+- `{d, date}` and `{d, time}` arguments (a `Date` or an epoch-millisecond number), formatted with `Intl.DateTimeFormat`. Styles: `short`, `medium` (default), `long`, `full`.
+- `#` inside `plural`/`selectordinal` is formatted for the locale like `{n, number}` (`1,234` in `en`, `1.234` in `de`).
+- ICU apostrophe quoting: `''` is a literal `'`; a `'` directly before `{`, `}` or `#` quotes text up to the next lone `'` (`'{name}'` renders as `{name}`); any other `'` (as in `don't`) is literal.
+- A missing argument is left as written (`{d, date}`), like a missing `{name}`. A value that can't be formatted (an invalid date, a non-numeric number, an unknown currency code) renders as `String(value)` instead of throwing.
 
 ### Not supported
 
-- ICU-style escaping or quoting (`''`, `'{'`) — quotes and braces pass through as written.
-- Argument types beyond `plural`, `select`, and `selectordinal` (ICU's `number`, `date`, `time`, or custom formatters).
-- Escaping braces beyond the literals above; unmatched braces must not resemble valid tokens.
+- Number skeletons beyond `::currency/XXX`, date/time skeletons, and custom formatters.
+- Unmatched braces that resemble valid tokens; quote them (`'{'`) instead.
 
 ---
 

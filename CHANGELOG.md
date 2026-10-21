@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### `@ngx-runtime-i18n/core`
+
+- **Feature:** ICU `number`, `date`, and `time` arguments: `{n, number}`, `{n, number, integer|percent|::currency/XXX}`, and `{d, date|time, short|medium|long|full}`, formatted with `Intl.NumberFormat`/`Intl.DateTimeFormat` for the active language. Formatters are cached per (language, style). A missing argument is left as written; an unformattable value (invalid date, non-numeric number, unknown currency or locale) renders as `String(value)` instead of throwing. `ExtractParams` types these as `number` and `Date | number`; previously it produced a param literally named `"d, date"`.
+- **Fix:** `#` in `plural`/`selectordinal` branches rendered `String(n)` (`1234`) in every language; it's now locale-formatted (`1,234` in `en`, `1.234` in `de`), as ICU specifies.
+- **Behavior change:** ICU apostrophe quoting. `''` now renders as `'`, and a `'` directly before `{`, `}` or `#` quotes text up to the next lone `'`. A lone apostrophe elsewhere (`don't`) is unaffected. Messages that wrapped a placeholder in straight quotes, e.g. `"Delete '{name}'?"`, now render `{name}` literally; write `''{name}''` or use typographic quotes. Catalogs exported from ICU-aware translation tools, which already double apostrophes, now render correctly instead of showing `''`.
+
 ## 2.2.0 (2026-09-05)
 
 A full-repo adversarial review (five parallel deep-dive passes: core, the Angular bindings, the Material/PrimeNG/schematics adapters, the CLI, and the marketing/docs site) surfaced and fixed a real prototype-pollution crash, a client-side hydration-mismatch flash, a language-switching race condition, several silent-failure bugs in the schematics and CLI, and three site bugs (a blank page on a bad doc/recipe URL, a `noindex` tag that never cleared, and search being completely unreachable on mobile). `@ngx-runtime-i18n/primeng` has no functional changes in this release (see below) and stays at 3.0.0.
