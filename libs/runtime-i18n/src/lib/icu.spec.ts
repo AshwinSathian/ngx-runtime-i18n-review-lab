@@ -352,6 +352,11 @@ describe('formatIcu', () => {
       expect(fmt('en', '{n, number }|{d,\tdate , long}', { n: 1234, d: day })).toBe('1,234|January 15, 2026');
     });
 
+    it('accepts dotted and hyphenated argument names, like {user.name}', () => {
+      expect(fmt('en', "{user.age, number}|{item-count, plural, one {# item} other {# items}}|{u.g, select, f {she} other {they}}", { 'user.age': 1234, 'item-count': 2, 'u.g': 'f' })).toBe('1,234|2 items|she');
+      expect(fmt('en', "{item-count, plural, other {'#'#}}", { 'item-count': 3 })).toBe('#3');
+    });
+
     it('accepts an underscore-separated language tag', () => {
       expect(fmt('de_DE', '{n, number}', { n: 1234.5 })).toBe('1.234,5');
     });

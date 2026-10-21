@@ -7,8 +7,10 @@
 import type { Catalog, PluralCategory, PluralResolver } from './types';
 
 // Tokens may include dots or hyphens so nested object keys like "user.name" are practical.
+// Every argument pattern below uses the same name class, so {user.age, number} and
+// {item-count, plural, ...} work like {user.name}.
 const INTERPOLATION_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_.-]*)\}/g;
-const ARGUMENT_PATTERN = /\{(\w+),\s*(number|date|time)\s*(?:,\s*([^{}]*?))?\s*\}/g;
+const ARGUMENT_PATTERN = /\{([a-zA-Z_][a-zA-Z0-9_.-]*),\s*(number|date|time)\s*(?:,\s*([^{}]*?))?\s*\}/g;
 
 // Quoted syntax characters are swapped for Unicode noncharacters while the message
 // is parsed, so they can't open blocks, close blocks, or become `#`. Noncharacters are
@@ -16,7 +18,7 @@ const ARGUMENT_PATTERN = /\{(\w+),\s*(number|date|time)\s*(?:,\s*([^{}]*?))?\s*\
 const QUOTED: Record<string, string> = { '{': '\uFDD0', '}': '\uFDD1', '#': '\uFDD2' };
 const UNQUOTED: Record<string, string> = { '\uFDD0': '{', '\uFDD1': '}', '\uFDD2': '#' };
 // Same prefix shape as the block scanner in replaceMessageBlocks.
-const PLURAL_BLOCK_START = /\{\w+,\s*(?:plural|selectordinal),/y;
+const PLURAL_BLOCK_START = /\{[a-zA-Z_][a-zA-Z0-9_.-]*,\s*(?:plural|selectordinal),/y;
 
 export function formatIcu(
   _lang: string,
@@ -169,7 +171,7 @@ function replaceMessageBlocks(
     out += s.slice(i, start);
 
     // Try to match the prefix "{arg, plural|select|selectordinal,"
-    const prefixMatch = /\{(\w+),\s*(plural|select|selectordinal),\s*/y;
+    const prefixMatch = /\{([a-zA-Z_][a-zA-Z0-9_.-]*),\s*(plural|select|selectordinal),\s*/y;
     prefixMatch.lastIndex = start;
     const m = prefixMatch.exec(s);
     if (!m) {
